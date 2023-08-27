@@ -1,0 +1,314 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+rm(list = ls())
+library("tidyverse")
+library("FNN")
+library("caret")
+library("rpart")
+library("rpart.plot")
+
+
+
+#k-NN classification  
+heart_failure = read_csv("heart_failure_clinical_records_dataset.csv")
+
+a1 = mean(heart_failure$age)
+a2 = sd(heart_failure$age)
+
+b1 = mean(heart_failure$creatinine_phosphokinase)
+b2 = sd(heart_failure$creatinine_phosphokinase)
+
+c1 = mean(heart_failure$ejection_fraction)
+c2 = sd(heart_failure$ejection_fraction)
+
+d1 = mean(heart_failure$platelets)
+d2 = sd(heart_failure$platelets)
+
+e1 = mean(heart_failure$serum_creatinine)
+e2 = sd(heart_failure$serum_creatinine)
+
+f1 = mean(heart_failure$serum_sodium)
+f2 = sd(heart_failure$serum_sodium)
+
+heart_failure = heart_failure %>%
+  mutate(age_norm = (age - a1)/a2,  creatinine_phosphokinase_norm = (creatinine_phosphokinase - b1)/b2, 
+         ejection_fraction_norm = (ejection_fraction - c1)/c2, platelets_norm = (platelets - d1)/d2, 
+         serum_creatinine_norm = (serum_creatinine - e1)/e2, serum_sodium_norm = (serum_sodium - f1)/f2)
+
+heart_failure_input_norm = heart_failure %>%
+  select(age_norm, creatinine_phosphokinase_norm, ejection_fraction_norm, platelets_norm, serum_creatinine_norm, 
+         serum_sodium_norm, sex, smoking, high_blood_pressure, diabetes, anaemia)
+
+newdata = as_tibble(list(age = 80, anaemia = 0, creatinine_phosphokinase = 600, diabetes = 1, ejection_fraction = 55,
+                         high_blood_pressure = 1, platelets = 250000, serum_creatinine = 1.75, serum_sodium = 132, 
+                         sex = 0, smoking = 0))
+
+newdata = newdata %>%
+  mutate(age_norm = (age - a1)/a2,  creatinine_phosphokinase_norm = (creatinine_phosphokinase - b1)/b2, 
+         ejection_fraction_norm = (ejection_fraction - c1)/c2, platelets_norm = (platelets - d1)/d2, 
+         serum_creatinine_norm = (serum_creatinine - e1)/e2, serum_sodium_norm = (serum_sodium - f1)/f2)
+
+newdata_input_norm = newdata %>%
+  select(age_norm, creatinine_phosphokinase_norm, ejection_fraction_norm, platelets_norm, serum_creatinine_norm, 
+         serum_sodium_norm, sex, smoking, high_blood_pressure, diabetes, anaemia)
+
+heart_failure_output = heart_failure$DEATH_EVENT
+
+knn(heart_failure_input_norm, newdata_input_norm, heart_failure_output, 3 )
+
+knn(heart_failure_input_norm, newdata_input_norm, heart_failure_output, 6 )
+
+knn(heart_failure_input_norm, newdata_input_norm, heart_failure_output, 14 )
+
+knn(heart_failure_input_norm, newdata_input_norm, heart_failure_output, 21)
+
+knn(heart_failure_input_norm, newdata_input_norm, heart_failure_output, 40)
+
+
+heart_failure = read_csv("heart_failure_clinical_records_dataset.csv")
+
+heart_failure = heart_failure %>%
+  mutate(id = 1:nrow(heart_failure)) %>% 
+  rename(Death_Event_actual = DEATH_EVENT)
+
+set.seed(30)
+
+train = heart_failure %>%
+  sample_frac(0.7)
+
+validation = heart_failure %>%
+  slice(setdiff(heart_failure$id, train$id))
+
+a1 = mean(heart_failure$age)
+a2 = sd(heart_failure$age)
+
+b1 = mean(heart_failure$creatinine_phosphokinase)
+b2 = sd(heart_failure$creatinine_phosphokinase)
+
+c1 = mean(heart_failure$ejection_fraction)
+c2 = sd(heart_failure$ejection_fraction)
+
+d1 = mean(heart_failure$platelets)
+d2 = sd(heart_failure$platelets)
+
+e1 = mean(heart_failure$serum_creatinine)
+e2 = sd(heart_failure$serum_creatinine)
+
+f1 = mean(heart_failure$serum_sodium)
+f2 = sd(heart_failure$serum_sodium)
+
+train = train %>%
+  mutate(age_norm = (age - a1)/a2,  creatinine_phosphokinase_norm = (creatinine_phosphokinase - b1)/b2,
+         ejection_fraction_norm = (ejection_fraction - c1)/c2, platelets_norm = (platelets - d1)/d2, 
+         serum_creatinine_norm = (serum_creatinine - e1)/e2, serum_sodium_norm = (serum_sodium - f1)/f2)
+
+
+train_input_norm = train %>%
+  select(age_norm, anaemia, creatinine_phosphokinase_norm, diabetes, ejection_fraction_norm, platelets_norm, serum_creatinine_norm, 
+         serum_sodium_norm, sex, smoking)
+
+validation = validation %>%
+  mutate(age_norm = (age - a1)/a2,  creatinine_phosphokinase_norm = (creatinine_phosphokinase - b1)/b2,
+         ejection_fraction_norm = (ejection_fraction - c1)/c2, platelets_norm = (platelets - d1)/d2, 
+         serum_creatinine_norm = (serum_creatinine - e1)/e2, serum_sodium_norm = (serum_sodium - f1)/f2)
+
+
+validation_input_norm = validation %>%
+  select(age_norm, anaemia, creatinine_phosphokinase_norm, diabetes, ejection_fraction_norm, platelets_norm, serum_creatinine_norm, 
+         serum_sodium_norm, sex, smoking)
+
+train_output = train$Death_Event_actual
+
+pred = knn(train_input_norm, validation_input_norm, train_output, 6)
+
+
+validation = validation %>%
+  mutate(Death_Event_prediction = pred)
+
+validation %>%
+  select(Death_Event_actual, Death_Event_prediction)
+
+validation %>%
+  group_by(Death_Event_prediction, Death_Event_actual) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = Death_Event_actual, values_from = count, values_fill = 0)
+
+validation %>%
+  mutate(flag = if_else(Death_Event_actual == Death_Event_prediction, 1, 0)) %>%
+  summarise(accuracy = sum(flag)/length(flag), err_miscl_rate = 1 - accuracy)
+
+validation %>%
+  filter(Death_Event_actual == "0") %>%
+  mutate(flag = if_else(Death_Event_actual == Death_Event_prediction, 1, 0)) %>%
+  summarise(sensitivity = sum(flag)/length(flag))
+
+validation %>%
+  filter(Death_Event_actual == "1") %>%
+  mutate(flag = if_else(Death_Event_actual == Death_Event_prediction, 1, 0)) %>%
+  summarise(specificity = sum(flag)/length(flag))
+
+
+validation = validation %>%
+  mutate(Death_Event_actual = factor(Death_Event_actual, levels = c("0", "1")),
+         Death_Event_prediction = factor(Death_Event_prediction, levels = c("0", "1")))
+
+m = confusionMatrix(validation$Death_Event_prediction, validation$Death_Event_actual)
+
+m$overall[1]
+
+options(warn = -1)
+
+for (k in 1:40)
+{
+  
+  a = knn(train_input_norm, validation_input_norm, train_output, k)
+  
+  cm = confusionMatrix(a,validation$Death_Event_actual)
+  
+  print(paste("The accuracy for k = ", k, "is", cm$overall[1])) 
+  
+}
+
+confusionMatrix(a,validation$Death_Event_actual)
+
+
+
+
+#logistic regression 
+heart_fail = read_csv("heart_failure_pred.csv")
+
+heart_fail = heart_fail %>%
+  mutate(DEATH_EVENT_actual = DEATH_EVENT) %>%
+  mutate(id = 1:nrow(heart_fail))
+
+# data partition - train & validation
+# set the seed to 30
+set.seed(30)
+
+# randomly draw 70% of the entire data (delays)
+# assign it to an object "train"
+train = heart_fail %>%
+  sample_frac(0.7)
+
+# extract the remaining 30% of the entire data
+# assign it to an object "validation"
+
+validation = heart_fail %>%
+  slice(setdiff(heart_fail$id, train$id))
+
+
+#logistic model
+
+lr_model = glm(DEATH_EVENT_actual ~ age + anaemia + creatinine_phosphokinase + diabetes +
+                 ejection_fraction + high_blood_pressure + platelets + serum_creatinine +
+                 serum_sodium + sex + smoking, train, family = "binomial")
+
+summary(lr_model)
+
+#confusion matrix
+
+validation = validation %>%
+  mutate(prob_prediction = predict(lr_model, validation, type = "response"))
+
+validation = validation %>%
+  mutate(DEATH_EVENT_prediction = if_else(prob_prediction >= 0.5, 1, 0))
+
+validation = validation %>%
+  mutate(DEATH_EVENT = factor(DEATH_EVENT_actual, c(0,1)),
+         DEATH_EVENT_prediction = factor(DEATH_EVENT_prediction, c(0,1)))
+
+confusionMatrix(as.factor(validation$DEATH_EVENT_prediction), as.factor(validation$DEATH_EVENT_actual))
+
+
+
+
+#classification tree
+heart = read_csv("heart_failure.csv")
+
+heart <- heart %>%
+  mutate(anaemia = if_else(anaemia==1,'Yes','No'),
+         diabetes = if_else(diabetes==1,'Yes','No'),
+         high_blood_pressure = if_else(high_blood_pressure==1,'Yes','No'),
+         smoking = if_else(smoking==1,'Yes','No'),
+         sex = if_else(sex==1,'Male','Female'),
+         DEATH_EVENT = if_else(DEATH_EVENT==1,'Yes','No')) %>%
+  mutate(anaemia = factor(anaemia,c('Yes','No')),
+         diabetes = factor(diabetes,c('Yes','No')),
+         high_blood_pressure = factor(high_blood_pressure,c('Yes','No')),
+         smoking = factor(smoking,c('Yes','No')),
+         sex = factor(sex,c("Male","Female")),
+         DEATH_EVENT = factor(DEATH_EVENT,c('Yes','No')))
+
+
+# create a new variable "id" that reflects the row number
+heart = heart %>%
+  mutate(id = 1:nrow(heart))
+
+#### pruning the tree ####
+### step 1: set the seed, data partition - train & validation
+# set seed to 30
+set.seed(30)
+
+# randomly draw 70% of the heart data 
+# assign it to an object "train"
+train = heart %>%
+  sample_frac(0.7)
+
+
+# extract the remaining 30% of the main data
+# assign it to an object "validation"
+validation = heart %>%
+  slice(setdiff(heart$id, train$id))
+
+### step2 : run a tree with options cp = 0.00001, minsplit = 5 or 10, xval = 5 or 10
+# assign it to an object "heart.ct"
+heart.ct = rpart(DEATH_EVENT ~ age + anaemia + creatinine_phosphokinase + diabetes + ejection_fraction + high_blood_pressure + platelets + serum_creatinine + serum_sodium + sex + smoking, data = train, method = "class", minsplit=10, xval=10, cp=0.00001)
+
+
+### step 3: plot the cp or relative error
+# choose the value for "size of the tree" where the relative error stabilizes
+plotcp(heart.ct)
+
+### step 4: find "nsplit" value and its associated cp value from "size of the tree"
+cp.table = as_tibble(heart.ct$cptable)
+
+# nsplit = size of the tree - 1
+optimal.cp = cp.table %>%
+  filter(nsplit == 10)
+
+### step 5: prune the tree with the optimal cp
+pruned.ct = prune(heart.ct, cp = optimal.cp$CP)
+
+# plot of the pruned tree
+prp(pruned.ct, type = 1, extra = 1, under = TRUE, split.font = 2, varlen = -10)
+
+### step 6: predict the loan status for validation data
+results = predict(pruned.ct, validation, type = "class")
+
+### step 7: generate confusion matrix and accuracy measures
+# create a new variable "loan_status_prediction" in the validation data
+# loan_status_prediction reflects the predicted loan_status
+validation = validation %>%
+  mutate(prediction = results)
+
+
+# confusion matrix, accuracy, sensitivity & specificity
+confusionMatrix(validation$prediction,validation$DEATH_EVENT)
+
+# fully grown classification tree 
+# store the model results in an object "ridmov.fct"
+heart.fct = rpart(DEATH_EVENT ~ age+anaemia+creatinine_phosphokinase+
+                    diabetes+ejection_fraction+high_blood_pressure+platelets+
+                    serum_creatinine+serum_sodium+sex+smoking, data = heart,
+                  method = "class", minsplit=1)
+x = colnames(heart)
+paste0(x,collapse = ", ")
+
+# plot of the fully grown classification tree
+
+prp(heart.fct, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10)
